@@ -26,7 +26,7 @@ async function loadDashboard() {
 
     document.getElementById('dashboardCards').innerHTML = cards.map(c => `
       <div class="card">
-        <div class="subtitle">${c.label}</div>
+        <div class="subtitle" style="color:#9bb0cc; font-size:12px;">${c.label}</div>
         <div class="value">${c.value}</div>
       </div>
     `).join('');
@@ -84,11 +84,11 @@ function renderTrend(series) {
 
 function renderList(id, list) {
   const el = document.getElementById(id);
-  if (!list.length) { el.innerHTML = '<div class="tiny">无数据</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="tiny">无数���</div>'; return; }
   const max = Math.max(...list.map(x => x.count || 0), 1);
   el.innerHTML = list.map(item => `
     <div class="bar-wrap" style="margin:10px 0;">
-      <span style="width:100px;display:inline-block;">${item.name || item.openId || '未知'}</span>
+      <span style="width:120px;display:inline-block; color:#dfeaff;">${item.name || item.openId || '未知'}</span>
       <span class="bar" style="width:${Math.max(12, ((item.count || 0) / max) * 100)}%"></span>
       <span class="tiny">${item.count}</span>
     </div>
@@ -109,7 +109,7 @@ function renderAlerts(alerts) {
         <span class="tiny">区域：${item.area} · 工程师：${item.assignee}</span>
         <span class="tiny">创建时间：${new Date(item.createdAt).toLocaleString()}</span>
       </div>
-      <span class="badge danger">超时 ${item.overdueHours}h</span>
+      <span class="badge ${item.level === 'critical' ? 'critical' : 'warning'}">${item.level === 'critical' ? '严重超时' : '超时'} ${item.overdueHours}h</span>
     </div>
   `).join('');
 }

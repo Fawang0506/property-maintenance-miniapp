@@ -4,18 +4,26 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function getSettings() {
   try {
     const doc = await db.collection('settings').doc('global').get();
-    return (doc && doc.data) || { admins: [], adminTokens: [] };
+    return (doc && doc.data) || { admins: [], adminTokens: [], sla: { warnHours: 8, criticalHours: 24 } };
   } catch (e) {
-    return { admins: [], adminTokens: [] };
+    return { admins: [], adminTokens: [], sla: { warnHours: 8, criticalHours: 24 } };
   }
 }
 
 function csvEscape(value) {
   const v = value === null || value === undefined ? '' : String(value);
   return `"${v.replace(/"/g, '""')}"`;
+}
+
+function formatHours(hours) {
+  return Number(hours || 0).toFixed(1);
 }
 
 async function scoreEngineerForOrder(engineer, order) {
@@ -36,7 +44,7 @@ async function scoreEngineerForOrder(engineer, order) {
 
 exports.main = async (event, context) => {
   const action = event.action || 'list';
-  const adminToken = event.adminToken || event.headers && event.headers['x-admin-token'];
+  const adminToken = event.adminToken || (event.headers && event.headers['x-admin-token']);
   const settings = await getSettings();
   const validTokens = Array.isArray(settings.adminTokens) ? settings.adminTokens : [];
 
@@ -89,7 +97,7 @@ exports.main = async (event, context) => {
           assigneeOpenId,
           updatedAt: now,
           status: rec.data && rec.data.status ? rec.data.status : '待处理',
-          records: _.push([record])
+          records: _.push([record]),
         };
         await db.collection('maintenance').doc(id).update({ data: update });
         const updated = await db.collection('maintenance').doc(id).get();
@@ -109,12 +117,18 @@ exports.main = async (event, context) => {
         if (!engineers.length) return { code: 1, message: '无可用工程师' };
 
         const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
-        scored.sort((a,b) => a.score - b.score);
+        scored.sort((a, b) => a.score - b.score);
         const selected = scored[0];
         if (!selected) return { code: 1, message: '无法选择工程师' };
 
         const now = new Date();
-        await db.collection('maintenance').doc(id).update({ data: { assigneeOpenId: selected.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]) } });
+        await db.collection('maintenance').doc(id).update({
+          data: {
+            assigneeOpenId: selected.openId,
+            updatedAt: now,
+            records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]),
+          },
+        });
         const updated = await db.collection('maintenance').doc(id).get();
         return { code: 0, data: { assignedTo: selected.openId, score: selected.score, order: updated.data } };
       }
@@ -134,11 +148,17 @@ exports.main = async (event, context) => {
         let assignedCount = 0;
         for (const order of pending) {
           const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
-          scored.sort((a,b) => a.score - b.score);
+          scored.sort((a, b) => a.score - b.score);
           const sel = scored[0];
           if (!sel) continue;
           const now = new Date();
-          await db.collection('maintenance').doc(order._id).update({ data: { assigneeOpenId: sel.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: sel.openId, at: now }]) } });
+          await db.collection('maintenance').doc(order._id).update({
+            data: {
+              assigneeOpenId: sel.openId,
+              updatedAt: now,
+              records: _.push([{ type: 'assign', by: 'dispatch', to: sel.openId, at: now }]),
+            },
+          });
           assignedCount++;
         }
 
@@ -149,6 +169,7 @@ exports.main = async (event, context) => {
         const days = Number(event.days || 7);
         const all = await db.collection('maintenance').limit(2000).get();
         const list = all.data || [];
+        const sla = settings.sla || { warnHours: 8, criticalHours: 24 };
 
         const totals = {
           total: list.length,
@@ -157,6 +178,8 @@ exports.main = async (event, context) => {
           completed: 0,
           canceled: 0,
           overdue: 0,
+          warning: 0,
+          critical: 0,
         };
 
         const byArea = {};
@@ -184,10 +207,14 @@ exports.main = async (event, context) => {
             newCount++;
           }
 
-          const overdueMs = Date.now() - new Date(item.createdAt || item.updatedAt || Date.now()).getTime();
-          const isOverdue = item.status !== '已完成' && item.status !== '已取消' && overdueMs > 24 * 3600000;
+          const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : null;
+          const overdueMs = createdAt ? (Date.now() - createdAt) : 0;
+          const isOverdue = item.status !== '已完成' && item.status !== '已取消' && createdAt && overdueMs > Number(sla.warnHours || 8) * 3600000;
           if (isOverdue) {
             totals.overdue++;
+            const level = overdueMs > Number(sla.criticalHours || 24) * 3600000 ? 'critical' : 'warning';
+            if (level === 'critical') totals.critical++;
+            else totals.warning++;
             alerts.push({
               _id: item._id,
               title: item.title || '未命名工单',
@@ -195,6 +222,7 @@ exports.main = async (event, context) => {
               priority: item.priority || '中',
               assignee: item.assigneeOpenId || '未指派',
               overdueHours: Number((overdueMs / 3600000).toFixed(1)),
+              level,
               createdAt: item.createdAt,
             });
           }
@@ -306,6 +334,7 @@ exports.main = async (event, context) => {
         const days = Number(event.days || 14);
         const now = new Date();
         const results = [];
+
         for (let i = days - 1; i >= 0; i--) {
           const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
           const start = new Date(d.setHours(0,0,0,0));
@@ -368,11 +397,25 @@ exports.main = async (event, context) => {
           item.priority || '',
           item.contact || '',
           item.createdAt ? new Date(item.createdAt).toISOString() : '',
-          item.updatedAt ? new Date(item.updatedAt).toISOString() : ''
+          item.updatedAt ? new Date(item.updatedAt).toISOString() : '',
         ]);
 
         const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
         return { code: 0, data: { csv, filename: `maintenance-export-${days}d.csv` } };
+      }
+
+      case 'setSla': {
+        const sla = event.payload || {};
+        const next = {
+          warnHours: Number(sla.warnHours || settings.sla?.warnHours || 8),
+          criticalHours: Number(sla.criticalHours || settings.sla?.criticalHours || 24),
+        };
+        await db.collection('settings').doc('global').set({ data: { ...(settings || {}), sla: next } });
+        return { code: 0, data: next };
+      }
+
+      case 'getSla': {
+        return { code: 0, data: settings.sla || { warnHours: 8, criticalHours: 24 } };
       }
 
       default:
