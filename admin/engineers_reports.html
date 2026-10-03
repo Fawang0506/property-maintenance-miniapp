@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>物业维护后台 - 工程师 & 报表</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="nav">
+        <button id="toList">工单列表</button>
+        <button id="toEngineers">工程师管理</button>
+        <button id="toReports">报表</button>
+        <button id="logoutBtn" class="ghost">退出</button>
+      </div>
+
+      <div id="panelList" class="panel hidden"></div>
+      <div id="panelEngineers" class="panel hidden">
+        <h3>工程师管理</h3>
+        <form id="engForm">
+          <input id="engOpenId" placeholder="工程师 openId" />
+          <input id="engName" placeholder="工程师姓名" />
+          <input id="engPhone" placeholder="电话" />
+          <input id="engAreas" placeholder="负责区域，逗号分隔" />
+          <button type="submit">新增工程师</button>
+        </form>
+        <div id="engineerList"></div>
+      </div>
+      <div id="panelReports" class="panel hidden">
+        <h3>报表</h3>
+        <div id="reportArea"></div>
+        <div id="reportPriority"></div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
