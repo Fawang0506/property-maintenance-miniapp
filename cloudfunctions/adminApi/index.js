@@ -4,16 +4,24 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 async function getSettings() {
   try {
     const doc = await db.collection('settings').doc('global').get();
-    return (doc && doc.data) || { admins: [], adminTokens: [], sla: { warnHours: 8, criticalHours: 24 } };
+    return (doc && doc.data) || {
+      admins: [],
+      adminTokens: [],
+      roles: ['admin', 'dispatch', 'engineer', 'operator'],
+      sla: { warnHours: 8, criticalHours: 24 },
+      maps: { enabled: false }
+    };
   } catch (e) {
-    return { admins: [], adminTokens: [], sla: { warnHours: 8, criticalHours: 24 } };
+    return {
+      admins: [],
+      adminTokens: [],
+      roles: ['admin', 'dispatch', 'engineer', 'operator'],
+      sla: { warnHours: 8, criticalHours: 24 },
+      maps: { enabled: false }
+    };
   }
 }
 
@@ -22,15 +30,11 @@ function csvEscape(value) {
   return `"${v.replace(/"/g, '""')}"`;
 }
 
-function formatHours(hours) {
-  return Number(hours || 0).toFixed(1);
-}
-
 async function scoreEngineerForOrder(engineer, order) {
   try {
     const loadRes = await db.collection('maintenance').where({ assigneeOpenId: engineer.openId, status: db.RegExp({ regexp: '处理中|待处理', options: 'i' }) }).count();
     const load = loadRes.total || 0;
-    const priority = (order.priority || '中');
+    const priority = order.priority || '中';
     const priorityScore = priority === '高' ? 0 : (priority === '中' ? 5 : 10);
     const skills = engineer.skills || [];
     const skillMismatch = (skills.includes(order.category) ? 0 : 20);
@@ -97,7 +101,7 @@ exports.main = async (event, context) => {
           assigneeOpenId,
           updatedAt: now,
           status: rec.data && rec.data.status ? rec.data.status : '待处理',
-          records: _.push([record]),
+          records: _.push([record])
         };
         await db.collection('maintenance').doc(id).update({ data: update });
         const updated = await db.collection('maintenance').doc(id).get();
@@ -126,8 +130,8 @@ exports.main = async (event, context) => {
           data: {
             assigneeOpenId: selected.openId,
             updatedAt: now,
-            records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]),
-          },
+            records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }])
+          }
         });
         const updated = await db.collection('maintenance').doc(id).get();
         return { code: 0, data: { assignedTo: selected.openId, score: selected.score, order: updated.data } };
@@ -156,12 +160,11 @@ exports.main = async (event, context) => {
             data: {
               assigneeOpenId: sel.openId,
               updatedAt: now,
-              records: _.push([{ type: 'assign', by: 'dispatch', to: sel.openId, at: now }]),
-            },
+              records: _.push([{ type: 'assign', by: 'dispatch', to: sel.openId, at: now }])
+            }
           });
           assignedCount++;
         }
-
         return { code: 0, data: { assigned: assignedCount } };
       }
 
@@ -203,12 +206,10 @@ exports.main = async (event, context) => {
           if (item.status === '已完成') totals.completed++;
           if (item.status === '已取消') totals.canceled++;
 
-          if (item.createdAt && new Date(item.createdAt) >= startDate) {
-            newCount++;
-          }
+          if (item.createdAt && new Date(item.createdAt) >= startDate) newCount++;
 
           const createdAt = item.createdAt ? new Date(item.createdAt).getTime() : null;
-          const overdueMs = createdAt ? (Date.now() - createdAt) : 0;
+          const overdueMs = createdAt ? Date.now() - createdAt : 0;
           const isOverdue = item.status !== '已完成' && item.status !== '已取消' && createdAt && overdueMs > Number(sla.warnHours || 8) * 3600000;
           if (isOverdue) {
             totals.overdue++;
@@ -223,7 +224,7 @@ exports.main = async (event, context) => {
               assignee: item.assigneeOpenId || '未指派',
               overdueHours: Number((overdueMs / 3600000).toFixed(1)),
               level,
-              createdAt: item.createdAt,
+              createdAt: item.createdAt
             });
           }
 
@@ -265,7 +266,7 @@ exports.main = async (event, context) => {
             date: `${day.getMonth() + 1}/${day.getDate()}`,
             total: dayCount,
             completed,
-            pending: Math.max(0, dayCount - completed),
+            pending: Math.max(0, dayCount - completed)
           });
         }
 
@@ -273,7 +274,7 @@ exports.main = async (event, context) => {
           .map(([openId, count]) => ({ openId, count }))
           .sort((a, b) => b.count - a.count)[0] || null;
 
-        const avgCompletionHours = resolveCount ? (totalResolveHours / resolveCount) : 0;
+        const avgCompletionHours = resolveCount ? totalResolveHours / resolveCount : 0;
         const completionRate = totals.total ? Number(((totals.completed / totals.total) * 100).toFixed(2)) : 0;
 
         return {
@@ -288,7 +289,7 @@ exports.main = async (event, context) => {
             newCount,
             trend,
             alerts: alerts.slice(0, 10),
-            generatedAt: new Date().toISOString(),
+            generatedAt: new Date().toISOString()
           }
         };
       }
@@ -322,7 +323,7 @@ exports.main = async (event, context) => {
             processing,
             overTime,
             avgHours,
-            completionRate,
+            completionRate
           });
         }
 
@@ -334,20 +335,19 @@ exports.main = async (event, context) => {
         const days = Number(event.days || 14);
         const now = new Date();
         const results = [];
-
         for (let i = days - 1; i >= 0; i--) {
           const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-          const start = new Date(d.setHours(0,0,0,0));
-          const end = new Date(d.setHours(23,59,59,999));
+          const start = new Date(d.setHours(0, 0, 0, 0));
+          const end = new Date(d.setHours(23, 59, 59, 999));
           const dayCount = await db.collection('maintenance').where({ createdAt: _.gte(start).and(_.lte(end)) }).count();
-          results.push({ date: start.toISOString().slice(0,10), count: dayCount.total || 0 });
+          results.push({ date: start.toISOString().slice(0, 10), count: dayCount.total || 0 });
         }
 
         const engRes2 = await db.collection('engineers').get();
         const engineers = engRes2.data || [];
         const perEngineer = [];
         for (const e of engineers) {
-          const c = await db.collection('maintenance').where({ assigneeOpenId: e.openId, createdAt: _.gte(new Date(Date.now() - 30*24*3600*1000)) }).count();
+          const c = await db.collection('maintenance').where({ assigneeOpenId: e.openId, createdAt: _.gte(new Date(Date.now() - 30 * 24 * 3600 * 1000)) }).count();
           perEngineer.push({ openId: e.openId, name: e.name, count: c.total || 0 });
         }
 
@@ -397,7 +397,7 @@ exports.main = async (event, context) => {
           item.priority || '',
           item.contact || '',
           item.createdAt ? new Date(item.createdAt).toISOString() : '',
-          item.updatedAt ? new Date(item.updatedAt).toISOString() : '',
+          item.updatedAt ? new Date(item.updatedAt).toISOString() : ''
         ]);
 
         const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
@@ -408,7 +408,7 @@ exports.main = async (event, context) => {
         const sla = event.payload || {};
         const next = {
           warnHours: Number(sla.warnHours || settings.sla?.warnHours || 8),
-          criticalHours: Number(sla.criticalHours || settings.sla?.criticalHours || 24),
+          criticalHours: Number(sla.criticalHours || settings.sla?.criticalHours || 24)
         };
         await db.collection('settings').doc('global').set({ data: { ...(settings || {}), sla: next } });
         return { code: 0, data: next };
@@ -416,6 +416,20 @@ exports.main = async (event, context) => {
 
       case 'getSla': {
         return { code: 0, data: settings.sla || { warnHours: 8, criticalHours: 24 } };
+      }
+
+      case 'getRoleSummary': {
+        const engineers = await db.collection('engineers').get();
+        const list = engineers.data || [];
+        const roles = ['admin', 'dispatch', 'engineer', 'operator'];
+        return {
+          code: 0,
+          data: {
+            roles,
+            totalUsers: list.length,
+            engineers: list.map(item => ({ name: item.name, openId: item.openId, areas: item.areas || [], skills: item.skills || [] }))
+          }
+        };
       }
 
       default:

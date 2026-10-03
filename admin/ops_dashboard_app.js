@@ -26,7 +26,7 @@ async function loadDashboard() {
 
     document.getElementById('dashboardCards').innerHTML = cards.map(c => `
       <div class="card">
-        <div class="subtitle" style="color:#9bb0cc; font-size:12px;">${c.label}</div>
+        <div class="tiny">${c.label}</div>
         <div class="value">${c.value}</div>
       </div>
     `).join('');
@@ -35,9 +35,36 @@ async function loadDashboard() {
     renderList('areaChart', data.byArea || []);
     renderList('priorityChart', data.byPriority || []);
     renderAlerts(data.alerts || []);
-    loadPerformance();
+    await loadRoleSummary();
+    await loadSlaSummary();
+    await loadPerformance();
   } catch (err) {
     alert(err.message || '加载运营大盘失败');
+  }
+}
+
+async function loadRoleSummary() {
+  try {
+    const data = await api('getRoleSummary');
+    const roles = data.roles || [];
+    document.getElementById('roleSummary').innerHTML = roles.map(role => `
+      <div class="tiny" style="margin:8px 0;">${role}</div>
+    `).join('');
+  } catch (err) {
+    document.getElementById('roleSummary').innerHTML = '<div class="tiny">角色配置加载失败</div>';
+  }
+}
+
+async function loadSlaSummary() {
+  try {
+    const data = await api('getSla');
+    document.getElementById('slaSummary').innerHTML = `
+      <div class="tiny" style="margin:8px 0;">预警阈值：${data.warnHours || 8} 小时</div>
+      <div class="tiny" style="margin:8px 0;">严重阈值：${data.criticalHours || 24} 小时</div>
+      <div class="tiny" style="margin:8px 0;">支持配置化管理</div>
+    `;
+  } catch (err) {
+    document.getElementById('slaSummary').innerHTML = '<div class="tiny">SLA 配置不可用</div>';
   }
 }
 
@@ -84,11 +111,11 @@ function renderTrend(series) {
 
 function renderList(id, list) {
   const el = document.getElementById(id);
-  if (!list.length) { el.innerHTML = '<div class="tiny">无数���</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="tiny">无数据</div>'; return; }
   const max = Math.max(...list.map(x => x.count || 0), 1);
   el.innerHTML = list.map(item => `
-    <div class="bar-wrap" style="margin:10px 0;">
-      <span style="width:120px;display:inline-block; color:#dfeaff;">${item.name || item.openId || '未知'}</span>
+    <div class="bar-wrap">
+      <span style="width:120px;display:inline-block;color:#dfeaff;">${item.name || item.openId || '未知'}</span>
       <span class="bar" style="width:${Math.max(12, ((item.count || 0) / max) * 100)}%"></span>
       <span class="tiny">${item.count}</span>
     </div>
