@@ -111,7 +111,7 @@ exports.main = async (event, context) => {
         const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
         scored.sort((a,b) => a.score - b.score);
         const selected = scored[0];
-        if (!selected) return { code: 1, message: '��法选择工程师' };
+        if (!selected) return { code: 1, message: '无法选择工程师' };
 
         const now = new Date();
         await db.collection('maintenance').doc(id).update({ data: { assigneeOpenId: selected.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]) } });
@@ -163,6 +163,7 @@ exports.main = async (event, context) => {
         const byPriority = { 高: 0, 中: 0, 低: 0 };
         const byEngineer = {};
         const trend = [];
+        const alerts = [];
 
         let totalResolveHours = 0;
         let resolveCount = 0;
@@ -171,7 +172,7 @@ exports.main = async (event, context) => {
         const today = new Date();
         const startDate = new Date(today);
         startDate.setDate(today.getDate() - Math.max(1, days - 1));
-        startDate.setHours(0,0,0,0);
+        startDate.setHours(0, 0, 0, 0);
 
         for (const item of list) {
           if (item.status === '待处理') totals.pending++;
@@ -183,8 +184,19 @@ exports.main = async (event, context) => {
             newCount++;
           }
 
-          if (item.status !== '已完成' && item.createdAt && Date.now() - new Date(item.createdAt).getTime() > 24 * 3600000) {
+          const overdueMs = Date.now() - new Date(item.createdAt || item.updatedAt || Date.now()).getTime();
+          const isOverdue = item.status !== '已完成' && item.status !== '已取消' && overdueMs > 24 * 3600000;
+          if (isOverdue) {
             totals.overdue++;
+            alerts.push({
+              _id: item._id,
+              title: item.title || '未命名工单',
+              area: item.area || '未分区',
+              priority: item.priority || '中',
+              assignee: item.assigneeOpenId || '未指派',
+              overdueHours: Number((overdueMs / 3600000).toFixed(1)),
+              createdAt: item.createdAt,
+            });
           }
 
           const area = item.area || '未分区';
@@ -207,7 +219,7 @@ exports.main = async (event, context) => {
         for (let i = days - 1; i >= 0; i--) {
           const day = new Date(today);
           day.setDate(today.getDate() - i);
-          day.setHours(0,0,0,0);
+          day.setHours(0, 0, 0, 0);
           const nextDay = new Date(day);
           nextDay.setDate(day.getDate() + 1);
 
@@ -225,13 +237,13 @@ exports.main = async (event, context) => {
             date: `${day.getMonth() + 1}/${day.getDate()}`,
             total: dayCount,
             completed,
-            pending: dayCount - completed
+            pending: Math.max(0, dayCount - completed),
           });
         }
 
         const topEngineer = Object.entries(byEngineer)
           .map(([openId, count]) => ({ openId, count }))
-          .sort((a,b) => b.count - a.count)[0] || null;
+          .sort((a, b) => b.count - a.count)[0] || null;
 
         const avgCompletionHours = resolveCount ? (totalResolveHours / resolveCount) : 0;
         const completionRate = totals.total ? Number(((totals.completed / totals.total) * 100).toFixed(2)) : 0;
@@ -240,13 +252,14 @@ exports.main = async (event, context) => {
           code: 0,
           data: {
             totals,
-            byArea: Object.entries(byArea).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count),
+            byArea: Object.entries(byArea).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
             byPriority: Object.entries(byPriority).map(([name, count]) => ({ name, count })).filter(item => item.count > 0),
             topEngineer,
             avgCompletionHours: Number(avgCompletionHours.toFixed(2)),
             completionRate,
             newCount,
             trend,
+            alerts: alerts.slice(0, 10),
             generatedAt: new Date().toISOString(),
           }
         };
@@ -285,7 +298,7 @@ exports.main = async (event, context) => {
           });
         }
 
-        results.sort((a,b) => b.completionRate - a.completionRate || b.total - a.total);
+        results.sort((a, b) => b.completionRate - a.completionRate || b.total - a.total);
         return { code: 0, data: { engineers: results } };
       }
 
@@ -326,19 +339,26 @@ exports.main = async (event, context) => {
       }
 
       case 'export': {
-        const page = Number(event.page || 1);
-        const pageSize = Number(event.pageSize || 500);
+        const days = Number(event.days || 7);
         const filter = event.filter || {};
         const where = {};
         if (filter.status) where.status = filter.status;
         if (filter.keyword) where.title = db.RegExp({ regexp: filter.keyword, options: 'i' });
+        if (filter.area) where.area = filter.area;
+        if (filter.priority) where.priority = filter.priority;
 
-        const skip = (page - 1) * pageSize;
-        const listRes = await db.collection('maintenance').where(where).orderBy('createdAt', 'desc').skip(skip).limit(pageSize).get();
-        const list = listRes.data || [];
+        const all = await db.collection('maintenance').where(where).limit(2000).get();
+        const list = all.data || [];
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+
+        const filtered = list.filter(item => {
+          if (!item.createdAt) return false;
+          return new Date(item.createdAt) >= cutoff;
+        });
 
         const header = ['工单ID', '标题', '状态', '类别', '位置', '区域', '优先级', '联系人', '创建时间', '更新时间'];
-        const rows = list.map(item => [
+        const rows = filtered.map(item => [
           item._id || item.id || '',
           item.title || '',
           item.status || '',
@@ -352,7 +372,7 @@ exports.main = async (event, context) => {
         ]);
 
         const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
-        return { code: 0, data: { csv }, filename: 'maintenance-export.csv' };
+        return { code: 0, data: { csv, filename: `maintenance-export-${days}d.csv` } };
       }
 
       default:
@@ -363,32 +383,3 @@ exports.main = async (event, context) => {
     return { code: 1, message: err && err.message ? err.message : '管理员 API 执行失败' };
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,6 +1,7 @@
 const ADMIN_API_BASE_URL = 'https://your-admin-api.example.com';
 const token = localStorage.getItem('adminToken') || prompt('请输入 admin token');
 const rangeSelect = document.getElementById('rangeSelect');
+const exportBtn = document.getElementById('exportBtn');
 
 async function api(action, payload = {}) {
   const body = JSON.stringify({ action, ...payload, adminToken: token });
@@ -33,6 +34,7 @@ async function loadDashboard() {
     renderTrend(data.trend || []);
     renderList('areaChart', data.byArea || []);
     renderList('priorityChart', data.byPriority || []);
+    renderAlerts(data.alerts || []);
     loadPerformance();
   } catch (err) {
     alert(err.message || '加载运营大盘失败');
@@ -93,5 +95,43 @@ function renderList(id, list) {
   `).join('');
 }
 
+function renderAlerts(alerts) {
+  const el = document.getElementById('alertList');
+  if (!alerts.length) {
+    el.innerHTML = '<div class="tiny">暂无超时预警</div>';
+    return;
+  }
+
+  el.innerHTML = alerts.map(item => `
+    <div class="alert-item">
+      <div class="alert-meta">
+        <strong>${item.title}</strong>
+        <span class="tiny">区域：${item.area} · 工程师：${item.assignee}</span>
+        <span class="tiny">创建时间：${new Date(item.createdAt).toLocaleString()}</span>
+      </div>
+      <span class="badge danger">超时 ${item.overdueHours}h</span>
+    </div>
+  `).join('');
+}
+
+async function exportDashboardCsv() {
+  try {
+    const days = Number(rangeSelect.value || 7);
+    const data = await api('export', { days, filter: {} });
+    const blob = new Blob([data.csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = data.filename || 'maintenance-export.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(err.message || '导出失败');
+  }
+}
+
 rangeSelect.addEventListener('change', loadDashboard);
+exportBtn.addEventListener('click', exportDashboardCsv);
 loadDashboard();
