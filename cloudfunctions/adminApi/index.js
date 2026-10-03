@@ -2,6 +2,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const _ = db.command;
 
 async function getSettings() {
   try {
@@ -15,6 +16,30 @@ async function getSettings() {
 function csvEscape(value) {
   const v = value === null || value === undefined ? '' : String(value);
   return `"${v.replace(/"/g, '""')}"`;
+}
+
+async function scoreEngineerForOrder(engineer, order) {
+  // Basic scoring: lower is better
+  // score = loadWeight * load + priorityWeight * priorityScore + skillMismatchPenalty
+  // For now: load = current assigned count; priorityScore: 高=0, 中=5, 低=10 (lower better)
+  try {
+    const loadRes = await db.collection('maintenance').where({ assigneeOpenId: engineer.openId, status: db.RegExp({ regexp: '处理中|待处理', options: 'i' }) }).count();
+    const load = loadRes.total || 0;
+    const priority = (order.priority || '中');
+    const priorityScore = priority === '高' ? 0 : (priority === '中' ? 5 : 10);
+
+    // skill match: if order.category in engineer.skills then 0 else 20
+    const skills = engineer.skills || [];
+    const skillMismatch = (skills.includes(order.category) ? 0 : 20);
+
+    // area match bonus
+    const areaMatch = (engineer.areas || []).some(a => a && order.area && a.toLowerCase() === order.area.toLowerCase()) ? 0 : 5;
+
+    const score = load * 10 + priorityScore + skillMismatch + areaMatch;
+    return { openId: engineer.openId, score, load };
+  } catch (e) {
+    return { openId: engineer.openId, score: 9999, load: 9999 };
+  }
 }
 
 exports.main = async (event, context) => {
@@ -79,58 +104,83 @@ exports.main = async (event, context) => {
         return { code: 0, data: updated.data || {} };
       }
 
-      case 'listEngineers': {
-        const res = await db.collection('engineers').get();
-        return { code: 0, data: res.data || [] };
+      case 'dispatchOrder': {
+        // smart assign a single order by id
+        const id = event.id || (event.payload && event.payload.id);
+        if (!id) return { code: 1, message: '缺少工单 id' };
+        const orderRes = await db.collection('maintenance').doc(id).get();
+        const order = orderRes.data;
+        if (!order) return { code: 1, message: '工单不存在' };
+        if (order.assigneeOpenId) return { code: 1, message: '工单已被指派' };
+
+        // find candidate engineers: areas match or global engineers
+        const engRes = await db.collection('engineers').get();
+        const engineers = engRes.data || [];
+        if (!engineers.length) return { code: 1, message: '无可用工程师' };
+
+        // score each engineer
+        const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
+        scored.sort((a,b) => a.score - b.score);
+        const selected = scored[0];
+        if (!selected) return { code: 1, message: '无法选择工程师' };
+
+        // assign
+        const now = new Date();
+        await db.collection('maintenance').doc(id).update({ data: { assigneeOpenId: selected.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]) } });
+        const updated = await db.collection('maintenance').doc(id).get();
+        return { code: 0, data: { assignedTo: selected.openId, score: selected.score, order: updated.data } };
       }
 
-      case 'createEngineer': {
-        const eng = event.payload || {};
-        if (!eng.openId || !eng.name) return { code: 1, message: '缺少工程师 openId 或 name' };
-        const doc = { openId: eng.openId, name: eng.name, phone: eng.phone || '', areas: eng.areas || [], createdAt: new Date() };
-        const r = await db.collection('engineers').add({ data: doc });
-        return { code: 0, data: { _id: r._id, ...doc } };
+      case 'batchDispatchArea': {
+        // assign all pending orders in area according to scoring
+        const area = event.area || (event.payload && event.payload.area);
+        if (!area) return { code: 1, message: '缺少 area 参数' };
+
+        const pendingRes = await db.collection('maintenance').where({ area, status: '待处理' }).get();
+        const pending = pendingRes.data || [];
+        if (!pending.length) return { code: 0, data: { assigned: 0 } };
+
+        const engRes = await db.collection('engineers').get();
+        const engineers = engRes.data || [];
+        if (!engineers.length) return { code: 1, message: '无可用工程师' };
+
+        let assignedCount = 0;
+        for (const order of pending) {
+          const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
+          scored.sort((a,b) => a.score - b.score);
+          const sel = scored[0];
+          if (!sel) continue;
+          const now = new Date();
+          await db.collection('maintenance').doc(order._id).update({ data: { assigneeOpenId: sel.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: sel.openId, at: now }]) } });
+          assignedCount++;
+        }
+
+        return { code: 0, data: { assigned: assignedCount } };
       }
 
-      case 'export': {
-        const page = Number(event.page || 1);
-        const pageSize = Number(event.pageSize || 500);
-        const filter = event.filter || {};
-        const where = {};
-        if (filter.status) where.status = filter.status;
-        if (filter.keyword) where.title = db.RegExp({ regexp: filter.keyword, options: 'i' });
+      case 'reportDetailed': {
+        // return time-series for last N days and per-engineer counts
+        const days = Number(event.days || 14);
+        const now = new Date();
+        const results = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+          const start = new Date(d.setHours(0,0,0,0));
+          const end = new Date(d.setHours(23,59,59,999));
+          const dayCount = await db.collection('maintenance').where({ createdAt: _.gte(start).and(_.lte(end)) }).count();
+          results.push({ date: start.toISOString().slice(0,10), count: dayCount.total || 0 });
+        }
 
-        const skip = (page - 1) * pageSize;
-        const listRes = await db.collection('maintenance').where(where).orderBy('createdAt', 'desc').skip(skip).limit(pageSize).get();
-        const list = listRes.data || [];
+        // per-engineer counts (last 30 days)
+        const engRes2 = await db.collection('engineers').get();
+        const engineers = engRes2.data || [];
+        const perEngineer = [];
+        for (const e of engineers) {
+          const c = await db.collection('maintenance').where({ assigneeOpenId: e.openId, createdAt: _.gte(new Date(Date.now() - 30*24*3600*1000)) }).count();
+          perEngineer.push({ openId: e.openId, name: e.name, count: c.total || 0 });
+        }
 
-        const header = ['工单ID', '标题', '状态', '类别', '位置', '区域', '优先级', '联系人', '创建时间', '更新时间'];
-        const rows = list.map(item => [
-          item._id || item.id || '',
-          item.title || '',
-          item.status || '',
-          item.category || '',
-          item.location || '',
-          item.area || '',
-          item.priority || '',
-          item.contact || '',
-          item.createdAt ? new Date(item.createdAt).toISOString() : '',
-          item.updatedAt ? new Date(item.updatedAt).toISOString() : ''
-        ]);
-
-        const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
-        return { code: 0, data: { csv }, filename: 'maintenance-export.csv' };
-      }
-
-      case 'report': {
-        // quick aggregated report: by area and by priority
-        const areas = await db.collection('maintenance').aggregate().group({ _id: '$area', count: _.sum(1) }).end().catch(()=>null);
-        const byPriority = {
-          high: (await db.collection('maintenance').where({ priority: '高' }).count()).total || 0,
-          medium: (await db.collection('maintenance').where({ priority: '中' }).count()).total || 0,
-          low: (await db.collection('maintenance').where({ priority: '低' }).count()).total || 0
-        };
-        return { code: 0, data: { areas: (areas && areas.list) || [], byPriority } };
+        return { code: 0, data: { timeseries: results, perEngineer } };
       }
 
       default:

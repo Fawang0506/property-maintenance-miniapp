@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dispatch & Reports</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <h2>智能派单 & 报表</h2>
+
+      <section>
+        <h3>单工单智能派单</h3>
+        <input id="orderId" placeholder="输入工单 ID" />
+        <button id="dispatchBtn">派单</button>
+        <pre id="dispatchResult"></pre>
+      </section>
+
+      <section>
+        <h3>按区域批量派单</h3>
+        <input id="areaInput" placeholder="区域（如：1栋）" />
+        <button id="batchDispatchBtn">批量派单</button>
+        <pre id="batchResult"></pre>
+      </section>
+
+      <section>
+        <h3>报表（最近 N 天）</h3>
+        <input id="daysInput" type="number" value="14" />
+        <button id="reportBtn">获取报表</button>
+        <div id="chart"></div>
+        <div id="engineerStats"></div>
+      </section>
+    </div>
+
+    <script src="./dispatch_app.js"></script>
+  </body>
+</html>
