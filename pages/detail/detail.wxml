@@ -1,0 +1,25 @@
+<view class="page">
+  <view class="card">
+    <view class="title">{{item.title || '报修详情'}}</view>
+    <view class="meta">状态：{{item.status || '待处理'}}</view>
+    <view class="meta">类别：{{item.category || '一般维修'}}</view>
+    <view class="meta">位置：{{item.location || '未填写'}}</view>
+    <view class="meta">联系人：{{item.contact || '未填写'}}</view>
+    <view class="meta">时间：{{item.createdAt || '未填写'}}</view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">问题描述</view>
+    <view class="desc">{{item.description || '暂无描述'}}</view>
+  </view>
+
+  <view wx:if="{{isAdmin}}" class="card">
+    <view class="section-title">处理状态</view>
+    <picker bindchange="onStatusChange" range="{{statusOptions}}" value="{{statusIndex}}">
+      <view class="picker">{{statusOptions[statusIndex]}}</view>
+    </picker>
+    <view style="margin-top:24rpx;">
+      <button class="button-primary" bindtap="saveStatus">保存状态</button>
+    </view>
+  </view>
+</view>

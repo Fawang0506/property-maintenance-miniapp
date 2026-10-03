@@ -1,0 +1,25 @@
+/* 页面样式 */
+.page {
+  padding-bottom: 40rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin: 20rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0,0,0,0.04);
+}
+
+.button-primary {
+  background: #1aad19;
+  color: white;
+  border-radius: 10rpx;
+  font-size: 30rpx;
+}
+
+.empty-state {
+  text-align: center;
+  color: #999;
+  padding: 80rpx 0;
+}

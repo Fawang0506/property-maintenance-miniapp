@@ -1,0 +1,31 @@
+<view class="page">
+  <view class="card">
+    <view class="section-title">报修信息</view>
+
+    <view class="input-wrap">
+      <input placeholder="报修标题" bindinput="onTitleInput" value="{{title}}" />
+    </view>
+
+    <view class="input-wrap">
+      <picker bindchange="onCategoryChange" range="{{categories}}" value="{{category}}">
+        <view>类别：{{category}}</view>
+      </picker>
+    </view>
+
+    <view class="input-wrap">
+      <input placeholder="报修位置（如：15栋101室）" bindinput="onLocationInput" value="{{location}}" />
+    </view>
+
+    <view class="input-wrap">
+      <input placeholder="联系人（可选）" bindinput="onContactInput" value="{{contact}}" />
+    </view>
+
+    <view class="input-wrap">
+      <textarea placeholder="问题描述" bindinput="onDescriptionInput" value="{{description}}" style="height:220rpx;" />
+    </view>
+
+    <view class="input-wrap" style="margin-top:30rpx;">
+      <button class="button-primary" bindtap="submit">提交报修</button>
+    </view>
+  </view>
+</view>
