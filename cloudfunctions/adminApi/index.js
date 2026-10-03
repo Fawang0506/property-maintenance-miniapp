@@ -12,7 +12,8 @@ async function getSettings() {
       adminTokens: [],
       roles: ['admin', 'dispatch', 'engineer', 'operator'],
       sla: { warnHours: 8, criticalHours: 24 },
-      maps: { enabled: false }
+      maps: { enabled: false },
+      notify: { enabled: false, templateId: '' }
     };
   } catch (e) {
     return {
@@ -20,7 +21,8 @@ async function getSettings() {
       adminTokens: [],
       roles: ['admin', 'dispatch', 'engineer', 'operator'],
       sla: { warnHours: 8, criticalHours: 24 },
-      maps: { enabled: false }
+      maps: { enabled: false },
+      notify: { enabled: false, templateId: '' }
     };
   }
 }
@@ -234,9 +236,7 @@ exports.main = async (event, context) => {
           const p = item.priority || '中';
           byPriority[p] = (byPriority[p] || 0) + 1;
 
-          if (item.assigneeOpenId) {
-            byEngineer[item.assigneeOpenId] = (byEngineer[item.assigneeOpenId] || 0) + 1;
-          }
+          if (item.assigneeOpenId) byEngineer[item.assigneeOpenId] = (byEngineer[item.assigneeOpenId] || 0) + 1;
 
           if (item.status === '已完成' && item.createdAt && item.updatedAt) {
             const diffMs = new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime();
@@ -428,6 +428,21 @@ exports.main = async (event, context) => {
             roles,
             totalUsers: list.length,
             engineers: list.map(item => ({ name: item.name, openId: item.openId, areas: item.areas || [], skills: item.skills || [] }))
+          }
+        };
+      }
+
+      case 'notify': {
+        const notifyCfg = settings.notify || { enabled: false, templateId: '' };
+        const payload = event.payload || {};
+        return {
+          code: 0,
+          data: {
+            enabled: !!notifyCfg.enabled,
+            templateId: notifyCfg.templateId || '',
+            sent: !!notifyCfg.enabled,
+            message: `通知已${notifyCfg.enabled ? '启用' : '关闭'}，待接入真实推送渠道`,
+            payload
           }
         };
       }
