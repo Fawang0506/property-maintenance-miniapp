@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>物业维护后台</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="login-panel" id="loginPanel">
+        <h1>物业维护后台</h1>
+        <form id="loginForm">
+          <label>管理员 Token</label>
+          <input id="tokenInput" type="password" placeholder="请输入 admin token" />
+          <button type="submit">登录</button>
+        </form>
+      </div>
+
+      <div class="dashboard hidden" id="dashboard">
+        <header class="topbar">
+          <h2>工单管理</h2>
+          <button id="logoutBtn" class="ghost">退出</button>
+        </header>
+
+        <div class="filters">
+          <select id="statusFilter">
+            <option value="">全部状态</option>
+            <option value="待处理">待处理</option>
+            <option value="处理中">处理中</option>
+            <option value="已完成">已完成</option>
+            <option value="已取消">已取消</option>
+          </select>
+          <input id="keywordInput" type="text" placeholder="搜索标题/位置" />
+          <button id="searchBtn">筛选</button>
+          <button id="exportBtn" class="primary">导出 CSV</button>
+        </div>
+
+        <div class="stats" id="stats"></div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>工单</th>
+              <th>状态</th>
+              <th>类型</th>
+              <th>位置</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

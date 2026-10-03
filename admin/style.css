@@ -1,0 +1,151 @@
+body {
+  margin: 0;
+  background: #f5f7fb;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+}
+
+.hidden { display: none !important; }
+
+.app {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 20px;
+}
+
+.login-panel {
+  max-width: 420px;
+  margin: 120px auto;
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+
+.login-panel h1 {
+  margin-top: 0;
+  text-align: center;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+input, select, button {
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+input, select {
+  border: 1px solid #dfe3ea;
+  background: #fff;
+}
+
+button {
+  background: #2f80ed;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button.primary {
+  background: #1aad19;
+}
+
+button.ghost {
+  background: #f3f5f7;
+  color: #333;
+}
+
+button.small {
+  padding: 7px 10px;
+  font-size: 12px;
+  margin-right: 8px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.03);
+}
+
+.stat span { display: block; color: #666; font-size: 12px; }
+.stat strong { font-size: 26px; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.03);
+}
+
+th, td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #eef1f5;
+  text-align: left;
+}
+
+th {
+  background: #f8fafc;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.badge.pending { background: #fff3e0; color: #b26a00; }
+.badge.processing { background: #e8f1ff; color: #1855d0; }
+.badge.done { background: #eaf8ec; color: #1a8f4b; }
+.badge.cancel { background: #f5f5f5; color: #666; }
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 18px;
+}
+
+.page {
+  background: #fff;
+  color: #333;
+  border: 1px solid #dfe3ea;
+}
+
+.page.active {
+  background: #2f80ed;
+  color: white;
+  border-color: #2f80ed;
+}
