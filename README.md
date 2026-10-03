@@ -1,63 +1,64 @@
-# 物业维护微信小程序
+# 物业维护微信云开发版
 
-这是一个可直接运行的微信小程序模板，适合物业、社区报修、维修工单管理等场景，包含：
+这份代码是适配微信云开发的物业维修小程序版本，适合用于：
 
-- 报修列表页
-- 新增报修页
-- 报修详情页
-- 状态更新（管理员可用）
-- 统一请求封装
-- 本地 mock 数据模式，可无需后端直接调试
+- 物业报修
+- 社区维修工单
+- 设备故障上报
+- 维修状态跟踪
 
-## 项目结构
+## 功能说明
 
-- `app.js`：应用入口
+- 用户可以提交报修单
+- 用户可查看自己的报修记录
+- 管理员可查看并更新维修状态
+- 数据存储在云数据库 `maintenance` 集合中
+- 后端逻辑由云函数 `maintenance` 提供
+
+## 目录结构
+
+- `app.js`：初始化云开发
 - `app.json`：小程序配置
-- `app.wxss`：全局样式
-- `project.config.json`：微信开发者工具配置
-- `pages/index/index.*`：报修列表页
-- `pages/create/create.*`：新增报修页
-- `pages/detail/detail.*`：详情页
-- `utils/request.js`：接口请求封装
-- `utils/fakeApi.js`：本地 mock 数据，便于本地开发和演示
+- `pages/index/index.*`：报修列表
+- `pages/create/create.*`：新增报修
+- `pages/detail/detail.*`：报修详情和状态更新
+- `utils/request.js`：统一云函数调用封装
+- `cloudfunctions/maintenance/`：维护云函数
 
 ## 快速开始
 
-1. 在微信开发者工具中打开本项目。
-2. 确认 `app.json`、`project.config.json` 中的内容正常。
-3. 若已有后端接口，可在 `app.js` 中设置 `baseUrl`：
-   ```js
-   globalData: {
-     baseUrl: 'https://api.example.com',
-     mockEnabled: false
-   }
-   ```
-4. 若没有后端，可保持 `mockEnabled: true`，它会自动使用本地模拟数据。
-5. 点击“编译”即可调试。
+1. 打开微信开发者工具。
+2. 导入本项目。
+3. 在 `app.js` 中把 `env` 改成你自己的云开发环境 ID。
+4. 在微信小程序云开发控制台中创建云环境；确保云环境已启用。
+5. 在云函数目录中右键上传并部署 `maintenance` 云函数。
+6. 在云数据库中创建 `maintenance` 集合（或让云函数自动创建时写入）。
+7. 编译并调试。
 
-## 接口约定
+## 云函数说明
 
-默认支持以下接口：
+云函数入口：`cloudfunctions/maintenance/index.js`
 
-- `GET /maintenance`：获取报修列表
-- `POST /maintenance`：新增报修
-- `GET /maintenance/:id`：获取单条报修
-- `PUT /maintenance/:id`：更新报修状态
+支持动作：
 
-## 说明
+- `list`：查询列表
+- `get`：查询单条记录
+- `create`：新增维修工单
+- `update`：更新状态
 
-本模板可直接作为开发起点，后续仍可扩展：
+## 生产建议
 
-- 用户登录认证
+可以继续扩展：
+
+- 用户登录 + 身份权限
 - 图片上传
-- 设备定位
-- 工单分派与处理流程
-- 管理后台
-- 微信支付 / 费用结算
+- 任务指派
+- 报表统计
+- 评价与回访
 
-如果你需要，我还可以继续帮你扩展成：
+如果你需要，我可以继续把它扩展成：
 
-- 微信云开发版（云函数 + 云数据库）
-- 完整的物业管理后台
-- Node.js / Express 后端接口
-- 真实部署到服务器的版本
+- 管理端 + 用户端分离
+- 完整物业后台
+- 云数据库权限控制
+- 可上线版本

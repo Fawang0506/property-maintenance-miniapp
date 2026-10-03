@@ -2,6 +2,7 @@
   "miniprogramRoot": "./",
   "projectname": "property-maintenance-miniapp",
   "appid": "",
+  "cloudfunctionRoot": "./cloudfunctions/",
   "compileType": "miniprogram",
   "setting": {
     "es6": true,

@@ -1,56 +1,45 @@
 const app = getApp();
 
-function request(path, method = 'GET', data = {}) {
-  const baseUrl = app && app.globalData && app.globalData.baseUrl;
-  const mockEnabled = app && app.globalData && app.globalData.mockEnabled;
-
-  if (mockEnabled) {
-    const fakeApi = require('./fakeApi');
-    return fakeApi.dispatch(path, method, data);
-  }
-
-  const url = `${baseUrl}${path}`;
-
+function callCloud(action, payload = {}) {
   return new Promise((resolve, reject) => {
-    wx.request({
-      url,
-      method,
-      data,
-      header: {
-        'Content-Type': 'application/json'
-      },
-      success(res) {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data);
-        } else {
-          reject(res);
+    wx.cloud.callFunction({
+      name: 'maintenance',
+      data: { action, ...payload }
+    })
+      .then((res) => {
+        const result = res && res.result;
+        if (result && result.code && result.code !== 0) {
+          reject(result);
+          return;
         }
-      },
-      fail(err) {
+
+        resolve(result && result.data !== undefined ? result.data : result);
+      })
+      .catch((err) => {
+        console.error('cloud call failed:', err);
         reject(err);
-      }
-    });
+      });
   });
 }
 
 function listMaintenance() {
-  return request('/maintenance', 'GET');
+  return callCloud('list');
 }
 
 function getMaintenance(id) {
-  return request(`/maintenance/${id}`, 'GET');
+  return callCloud('get', { id });
 }
 
 function createMaintenance(payload) {
-  return request('/maintenance', 'POST', payload);
+  return callCloud('create', { payload });
 }
 
 function updateMaintenance(id, payload) {
-  return request(`/maintenance/${id}`, 'PUT', payload);
+  return callCloud('update', { id, payload });
 }
 
 module.exports = {
-  request,
+  callCloud,
   listMaintenance,
   getMaintenance,
   createMaintenance,

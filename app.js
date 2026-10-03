@@ -1,11 +1,22 @@
 App({
   onLaunch() {
-    // 可在这里做登录检查、初始化缓存等
+    if (!wx.cloud) {
+      console.error('请先开启微信云开发能力');
+      return;
+    }
+
+    // 设置云开发环境（你需要在微信开发者工具中绑定真实环境）
+    wx.cloud.init({
+      env: 'your-cloud-env-id' // 例如：property-maintenance-abc123
+    });
+
+    // 可在此处判断登录状态和是否管理员
+    // this.globalData.userInfo = ...
+    // this.globalData.isAdmin = ...
   },
   globalData: {
-    // 如果已有后端，把这里改成你的 API 基地址，如：https://api.example.com
-    baseUrl: 'https://api.example.com',
-    // 设为 true 时优先使用 mock 数据，方便本地调试；真实环境可设为 false
-    mockEnabled: true
+    userInfo: null,
+    isAdmin: false,
+    cloudEnv: 'your-cloud-env-id'
   }
 });
