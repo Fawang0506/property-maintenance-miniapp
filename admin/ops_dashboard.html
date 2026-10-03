@@ -5,40 +5,120 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>运营大盘</title>
     <style>
-      body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
+      :root {
+        --bg: #f5f7fa;
+        --panel: #ffffff;
+        --line: #eef2f6;
+        --text: #1f2937;
+        --muted: #667085;
+        --primary: #2f80ed;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif;
+        color: var(--text);
+      }
       .app { max-width: 1200px; margin: 24px auto; padding: 20px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-      .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 8px 18px rgba(0,0,0,0.04); }
-      .subtitle { color: #667085; font-size: 12px; }
-      .value { font-size: 34px; font-weight: 700; margin-top: 8px; }
+      .topbar {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px;
+        margin-bottom: 20px;
+      }
+      .topbar h2 { margin: 0; }
+      .range-selector {
+        padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        background: var(--panel);
+        border-radius: 12px;
+        padding: 18px;
+        box-shadow: 0 8px 18px rgba(0,0,0,0.04);
+      }
+      .subtitle { color: var(--muted); font-size: 12px; }
+      .value { font-size: 32px; font-weight: 700; margin-top: 8px; }
+      .trend {
+        display: flex; align-items: flex-end; gap: 10px; height: 160px;
+        margin-top: 8px; padding-top: 10px;
+      }
+      .bar-day {
+        flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px;
+      }
+      .bar-fill {
+        width: 100%; max-width: 30px; border-radius: 8px 8px 0 0;
+        background: linear-gradient(180deg, #6db0ff, var(--primary));
+      }
+      .day-label { font-size: 12px; color: var(--muted); }
       .section { margin-top: 24px; }
-      .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
-      table { width: 100%; border-collapse: collapse; background: white; }
-      th, td { padding: 12px 10px; border-bottom: 1px solid #eef2f6; text-align: left; }
-      .bar { height: 18px; border-radius: 8px; background: linear-gradient(90deg, #2f80ed, #6db0ff); display: inline-block; }
+      .two-col {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 18px;
+      }
+      table {
+        width: 100%; border-collapse: collapse; background: white;
+      }
+      th, td {
+        padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left;
+      }
       .bar-wrap { display: flex; align-items: center; gap: 8px; }
-      .tiny { font-size: 12px; color: #667085; }
+      .bar {
+        height: 18px; border-radius: 8px;
+        background: linear-gradient(90deg, #2f80ed, #6db0ff);
+        display: inline-block;
+      }
+      .tiny { font-size: 12px; color: var(--muted); }
+      .badge {
+        display: inline-block; padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+      }
+      .badge.success { background: rgba(34,197,94,.12); color: #15803d; }
+      .badge.warning { background: rgba(245,158,11,.12); color: #b45309; }
+      .badge.danger { background: rgba(239,68,68,.12); color: #b91c1c; }
     </style>
   </head>
   <body>
     <div class="app">
-      <h2>运营大盘</h2>
+      <div class="topbar">
+        <h2>运营大盘</h2>
+        <select id="rangeSelect" class="range-selector">
+          <option value="7">最近 7 天</option>
+          <option value="14">最近 14 天</option>
+          <option value="30">最近 30 天</option>
+          <option value="90">最近 90 天</option>
+        </select>
+      </div>
+
       <div id="dashboardCards" class="grid"></div>
 
       <div class="section two-col">
         <div class="card">
+          <h3>工单趋势</h3>
+          <div id="trendChart" class="trend"></div>
+        </div>
+        <div class="card">
           <h3>区域分布</h3>
           <div id="areaChart"></div>
         </div>
+      </div>
+
+      <div class="section two-col">
         <div class="card">
           <h3>优先级分布</h3>
           <div id="priorityChart"></div>
         </div>
-      </div>
-
-      <div class="section card">
-        <h3>工程师绩效</h3>
-        <div id="engineerPerformance"></div>
+        <div class="card">
+          <h3>工程师绩效</h3>
+          <div id="engineerPerformance"></div>
+        </div>
       </div>
     </div>
 

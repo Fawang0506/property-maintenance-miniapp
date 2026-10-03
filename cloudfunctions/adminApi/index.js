@@ -146,26 +146,46 @@ exports.main = async (event, context) => {
       }
 
       case 'dashboard': {
+        const days = Number(event.days || 7);
         const all = await db.collection('maintenance').limit(2000).get();
         const list = all.data || [];
+
         const totals = {
           total: list.length,
           pending: 0,
           processing: 0,
           completed: 0,
           canceled: 0,
+          overdue: 0,
         };
+
         const byArea = {};
         const byPriority = { 高: 0, 中: 0, 低: 0 };
         const byEngineer = {};
+        const trend = [];
+
         let totalResolveHours = 0;
         let resolveCount = 0;
+        let newCount = 0;
+
+        const today = new Date();
+        const startDate = new Date(today);
+        startDate.setDate(today.getDate() - Math.max(1, days - 1));
+        startDate.setHours(0,0,0,0);
 
         for (const item of list) {
           if (item.status === '待处理') totals.pending++;
           if (item.status === '处理中') totals.processing++;
           if (item.status === '已完成') totals.completed++;
           if (item.status === '已取消') totals.canceled++;
+
+          if (item.createdAt && new Date(item.createdAt) >= startDate) {
+            newCount++;
+          }
+
+          if (item.status !== '已完成' && item.createdAt && Date.now() - new Date(item.createdAt).getTime() > 24 * 3600000) {
+            totals.overdue++;
+          }
 
           const area = item.area || '未分区';
           byArea[area] = (byArea[area] || 0) + 1;
@@ -184,20 +204,50 @@ exports.main = async (event, context) => {
           }
         }
 
+        for (let i = days - 1; i >= 0; i--) {
+          const day = new Date(today);
+          day.setDate(today.getDate() - i);
+          day.setHours(0,0,0,0);
+          const nextDay = new Date(day);
+          nextDay.setDate(day.getDate() + 1);
+
+          const dayCount = list.filter(item => {
+            const ts = item.createdAt ? new Date(item.createdAt).getTime() : null;
+            return ts && ts >= day.getTime() && ts < nextDay.getTime();
+          }).length;
+
+          const completed = list.filter(item => {
+            const ts = item.updatedAt ? new Date(item.updatedAt).getTime() : null;
+            return ts && ts >= day.getTime() && ts < nextDay.getTime() && item.status === '已完成';
+          }).length;
+
+          trend.push({
+            date: `${day.getMonth() + 1}/${day.getDate()}`,
+            total: dayCount,
+            completed,
+            pending: dayCount - completed
+          });
+        }
+
         const topEngineer = Object.entries(byEngineer)
           .map(([openId, count]) => ({ openId, count }))
           .sort((a,b) => b.count - a.count)[0] || null;
 
         const avgCompletionHours = resolveCount ? (totalResolveHours / resolveCount) : 0;
+        const completionRate = totals.total ? Number(((totals.completed / totals.total) * 100).toFixed(2)) : 0;
 
         return {
           code: 0,
           data: {
             totals,
-            byArea: Object.entries(byArea).map(([name, count]) => ({ name, count })),
-            byPriority: Object.entries(byPriority).map(([name, count]) => ({ name, count })),
+            byArea: Object.entries(byArea).map(([name, count]) => ({ name, count })).sort((a,b) => b.count - a.count),
+            byPriority: Object.entries(byPriority).map(([name, count]) => ({ name, count })).filter(item => item.count > 0),
             topEngineer,
-            avgCompletionHours: Number(avgCompletionHours.toFixed(2))
+            avgCompletionHours: Number(avgCompletionHours.toFixed(2)),
+            completionRate,
+            newCount,
+            trend,
+            generatedAt: new Date().toISOString(),
           }
         };
       }
@@ -215,6 +265,13 @@ exports.main = async (event, context) => {
           const pending = list.filter(item => item.status === '待处理').length;
           const processing = list.filter(item => item.status === '处理中').length;
           const overTime = list.filter(item => item.status !== '已完成' && item.createdAt && Date.now() - new Date(item.createdAt).getTime() > 24 * 3600000).length;
+          const resolvedHours = list.filter(item => item.status === '已完成' && item.createdAt && item.updatedAt).reduce((sum, item) => {
+            const diff = new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime();
+            return sum + diff / 3600000;
+          }, 0);
+          const avgHours = total ? Number((resolvedHours / completed || 0).toFixed(2)) : 0;
+          const completionRate = total ? Number(((completed / total) * 100).toFixed(2)) : 0;
+
           results.push({
             openId: engineer.openId,
             name: engineer.name || '工程师',
@@ -223,10 +280,12 @@ exports.main = async (event, context) => {
             pending,
             processing,
             overTime,
-            completionRate: total ? Number(((completed / total) * 100).toFixed(2)) : 0
+            avgHours,
+            completionRate,
           });
         }
 
+        results.sort((a,b) => b.completionRate - a.completionRate || b.total - a.total);
         return { code: 0, data: { engineers: results } };
       }
 
@@ -304,3 +363,32 @@ exports.main = async (event, context) => {
     return { code: 1, message: err && err.message ? err.message : '管理员 API 执行失败' };
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
