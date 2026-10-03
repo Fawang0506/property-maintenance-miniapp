@@ -19,22 +19,14 @@ function csvEscape(value) {
 }
 
 async function scoreEngineerForOrder(engineer, order) {
-  // Basic scoring: lower is better
-  // score = loadWeight * load + priorityWeight * priorityScore + skillMismatchPenalty
-  // For now: load = current assigned count; priorityScore: 高=0, 中=5, 低=10 (lower better)
   try {
     const loadRes = await db.collection('maintenance').where({ assigneeOpenId: engineer.openId, status: db.RegExp({ regexp: '处理中|待处理', options: 'i' }) }).count();
     const load = loadRes.total || 0;
     const priority = (order.priority || '中');
     const priorityScore = priority === '高' ? 0 : (priority === '中' ? 5 : 10);
-
-    // skill match: if order.category in engineer.skills then 0 else 20
     const skills = engineer.skills || [];
     const skillMismatch = (skills.includes(order.category) ? 0 : 20);
-
-    // area match bonus
     const areaMatch = (engineer.areas || []).some(a => a && order.area && a.toLowerCase() === order.area.toLowerCase()) ? 0 : 5;
-
     const score = load * 10 + priorityScore + skillMismatch + areaMatch;
     return { openId: engineer.openId, score, load };
   } catch (e) {
@@ -105,7 +97,6 @@ exports.main = async (event, context) => {
       }
 
       case 'dispatchOrder': {
-        // smart assign a single order by id
         const id = event.id || (event.payload && event.payload.id);
         if (!id) return { code: 1, message: '缺少工单 id' };
         const orderRes = await db.collection('maintenance').doc(id).get();
@@ -113,18 +104,15 @@ exports.main = async (event, context) => {
         if (!order) return { code: 1, message: '工单不存在' };
         if (order.assigneeOpenId) return { code: 1, message: '工单已被指派' };
 
-        // find candidate engineers: areas match or global engineers
         const engRes = await db.collection('engineers').get();
         const engineers = engRes.data || [];
         if (!engineers.length) return { code: 1, message: '无可用工程师' };
 
-        // score each engineer
         const scored = await Promise.all(engineers.map(e => scoreEngineerForOrder(e, order)));
         scored.sort((a,b) => a.score - b.score);
         const selected = scored[0];
-        if (!selected) return { code: 1, message: '无法选择工程师' };
+        if (!selected) return { code: 1, message: '��法选择工程师' };
 
-        // assign
         const now = new Date();
         await db.collection('maintenance').doc(id).update({ data: { assigneeOpenId: selected.openId, updatedAt: now, records: _.push([{ type: 'assign', by: 'dispatch', to: selected.openId, at: now }]) } });
         const updated = await db.collection('maintenance').doc(id).get();
@@ -132,7 +120,6 @@ exports.main = async (event, context) => {
       }
 
       case 'batchDispatchArea': {
-        // assign all pending orders in area according to scoring
         const area = event.area || (event.payload && event.payload.area);
         if (!area) return { code: 1, message: '缺少 area 参数' };
 
@@ -158,8 +145,92 @@ exports.main = async (event, context) => {
         return { code: 0, data: { assigned: assignedCount } };
       }
 
+      case 'dashboard': {
+        const all = await db.collection('maintenance').limit(2000).get();
+        const list = all.data || [];
+        const totals = {
+          total: list.length,
+          pending: 0,
+          processing: 0,
+          completed: 0,
+          canceled: 0,
+        };
+        const byArea = {};
+        const byPriority = { 高: 0, 中: 0, 低: 0 };
+        const byEngineer = {};
+        let totalResolveHours = 0;
+        let resolveCount = 0;
+
+        for (const item of list) {
+          if (item.status === '待处理') totals.pending++;
+          if (item.status === '处理中') totals.processing++;
+          if (item.status === '已完成') totals.completed++;
+          if (item.status === '已取消') totals.canceled++;
+
+          const area = item.area || '未分区';
+          byArea[area] = (byArea[area] || 0) + 1;
+
+          const p = item.priority || '中';
+          byPriority[p] = (byPriority[p] || 0) + 1;
+
+          if (item.assigneeOpenId) {
+            byEngineer[item.assigneeOpenId] = (byEngineer[item.assigneeOpenId] || 0) + 1;
+          }
+
+          if (item.status === '已完成' && item.createdAt && item.updatedAt) {
+            const diffMs = new Date(item.updatedAt).getTime() - new Date(item.createdAt).getTime();
+            totalResolveHours += diffMs / 3600000;
+            resolveCount++;
+          }
+        }
+
+        const topEngineer = Object.entries(byEngineer)
+          .map(([openId, count]) => ({ openId, count }))
+          .sort((a,b) => b.count - a.count)[0] || null;
+
+        const avgCompletionHours = resolveCount ? (totalResolveHours / resolveCount) : 0;
+
+        return {
+          code: 0,
+          data: {
+            totals,
+            byArea: Object.entries(byArea).map(([name, count]) => ({ name, count })),
+            byPriority: Object.entries(byPriority).map(([name, count]) => ({ name, count })),
+            topEngineer,
+            avgCompletionHours: Number(avgCompletionHours.toFixed(2))
+          }
+        };
+      }
+
+      case 'performance': {
+        const engineersRes = await db.collection('engineers').get();
+        const engineers = engineersRes.data || [];
+        const results = [];
+
+        for (const engineer of engineers) {
+          const tickets = await db.collection('maintenance').where({ assigneeOpenId: engineer.openId }).get();
+          const list = tickets.data || [];
+          const total = list.length;
+          const completed = list.filter(item => item.status === '已完成').length;
+          const pending = list.filter(item => item.status === '待处理').length;
+          const processing = list.filter(item => item.status === '处理中').length;
+          const overTime = list.filter(item => item.status !== '已完成' && item.createdAt && Date.now() - new Date(item.createdAt).getTime() > 24 * 3600000).length;
+          results.push({
+            openId: engineer.openId,
+            name: engineer.name || '工程师',
+            total,
+            completed,
+            pending,
+            processing,
+            overTime,
+            completionRate: total ? Number(((completed / total) * 100).toFixed(2)) : 0
+          });
+        }
+
+        return { code: 0, data: { engineers: results } };
+      }
+
       case 'reportDetailed': {
-        // return time-series for last N days and per-engineer counts
         const days = Number(event.days || 14);
         const now = new Date();
         const results = [];
@@ -171,7 +242,6 @@ exports.main = async (event, context) => {
           results.push({ date: start.toISOString().slice(0,10), count: dayCount.total || 0 });
         }
 
-        // per-engineer counts (last 30 days)
         const engRes2 = await db.collection('engineers').get();
         const engineers = engRes2.data || [];
         const perEngineer = [];
@@ -181,6 +251,49 @@ exports.main = async (event, context) => {
         }
 
         return { code: 0, data: { timeseries: results, perEngineer } };
+      }
+
+      case 'listEngineers': {
+        const res = await db.collection('engineers').get();
+        return { code: 0, data: res.data || [] };
+      }
+
+      case 'createEngineer': {
+        const eng = event.payload || {};
+        if (!eng.openId || !eng.name) return { code: 1, message: '缺少工程师 openId 或 name' };
+        const doc = { openId: eng.openId, name: eng.name, phone: eng.phone || '', areas: eng.areas || [], skills: eng.skills || [], createdAt: new Date() };
+        const r = await db.collection('engineers').add({ data: doc });
+        return { code: 0, data: { _id: r._id, ...doc } };
+      }
+
+      case 'export': {
+        const page = Number(event.page || 1);
+        const pageSize = Number(event.pageSize || 500);
+        const filter = event.filter || {};
+        const where = {};
+        if (filter.status) where.status = filter.status;
+        if (filter.keyword) where.title = db.RegExp({ regexp: filter.keyword, options: 'i' });
+
+        const skip = (page - 1) * pageSize;
+        const listRes = await db.collection('maintenance').where(where).orderBy('createdAt', 'desc').skip(skip).limit(pageSize).get();
+        const list = listRes.data || [];
+
+        const header = ['工单ID', '标题', '状态', '类别', '位置', '区域', '优先级', '联系人', '创建时间', '更新时间'];
+        const rows = list.map(item => [
+          item._id || item.id || '',
+          item.title || '',
+          item.status || '',
+          item.category || '',
+          item.location || '',
+          item.area || '',
+          item.priority || '',
+          item.contact || '',
+          item.createdAt ? new Date(item.createdAt).toISOString() : '',
+          item.updatedAt ? new Date(item.updatedAt).toISOString() : ''
+        ]);
+
+        const csv = [header, ...rows].map(row => row.map(csvEscape).join(',')).join('\n');
+        return { code: 0, data: { csv }, filename: 'maintenance-export.csv' };
       }
 
       default:

@@ -12,8 +12,10 @@
 - 用户可以提交报修单
 - 用户可查看自己的报修记录
 - 管理员可查看并更新维修状态
-- 数据存储在云数据库 `maintenance` 集合中
-- 后端逻辑由云函数 `maintenance` 提供
+- 工程师可接单、拒单、签到、上传现场照片、完工
+- 运营后台可查看派单、区域分布、优先级分布和工程师绩效
+- 数据存储在云数据库 `maintenance`、`engineers`、`settings`、`logs` 集合中
+- 后端逻辑由云函数 `maintenance` 和 `adminApi` 提供
 
 ## 目录结构
 
@@ -22,43 +24,24 @@
 - `pages/index/index.*`：报修列表
 - `pages/create/create.*`：新增报修
 - `pages/detail/detail.*`：报修详情和状态更新
-- `utils/request.js`：统一云函数调用封装
-- `cloudfunctions/maintenance/`：维护云函数
+- `pages/engineer/engineer.*`：工程师端页面
+- `admin/ops_dashboard.html`：运营大盘页
+- `cloudfunctions/maintenance/`：维修云函数
+- `cloudfunctions/adminApi/`：管理员后台接口
+- `cloudfunctions/notify/`：通知云函数
+- `docs/`：隐私、审核、工程师、运营手册
 
-## 快速开始
+## 关键 API
 
-1. 打开微信开发者工具。
-2. 导入本项目。
-3. 在 `app.js` 中把 `env` 改成你自己的云开发环境 ID。
-4. 在微信小程序云开发控制台中创建云环境；确保云环境已启用。
-5. 在云函数目录中右键上传并部署 `maintenance` 云函数。
-6. 在云数据库中创建 `maintenance` 集合（或让云函数自动创建时写入）。
-7. 编译并调试。
-
-## 云函数说明
-
-云函数入口：`cloudfunctions/maintenance/index.js`
-
-支持动作：
-
-- `list`：查询列表
-- `get`：查询单条记录
-- `create`：新增维修工单
-- `update`：更新状态
+- `dashboard`：返回总览指标、区域分布、优先级分布、工程师绩效
+- `performance`：返回工程师绩效与超时工单情况
+- `dispatchOrder`：按策略自动派单单个工单
+- `batchDispatchArea`：按区域批量派单
+- `reportDetailed`：返回时间序列与工程师近 30 天统计
 
 ## 生产建议
 
-可以继续扩展：
-
-- 用户登录 + 身份权限
-- 图片上传
-- 任务指派
-- 报表统计
-- 评价与回访
-
-如果你需要，我可以继续把它扩展成：
-
-- 管理端 + 用户端分离
-- 完整物业后台
-- 云数据库权限控制
-- 可上线版本
+- 继续接入 ECharts 或 Ant Design Charts 来增强图形化运营
+- 对 `settings/global` 中的 `adminTokens` 做机密管理，不要提交到公开仓库
+- 为工程师增加签到 GPS 与现场照片审批流程
+- 增加 SLA、超时工单提醒和自动再派规则

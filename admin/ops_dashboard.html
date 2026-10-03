@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>运营大盘</title>
+    <style>
+      body { margin: 0; background: #f5f7fa; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', sans-serif; }
+      .app { max-width: 1200px; margin: 24px auto; padding: 20px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+      .card { background: #fff; border-radius: 12px; padding: 18px; box-shadow: 0 8px 18px rgba(0,0,0,0.04); }
+      .subtitle { color: #667085; font-size: 12px; }
+      .value { font-size: 34px; font-weight: 700; margin-top: 8px; }
+      .section { margin-top: 24px; }
+      .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+      table { width: 100%; border-collapse: collapse; background: white; }
+      th, td { padding: 12px 10px; border-bottom: 1px solid #eef2f6; text-align: left; }
+      .bar { height: 18px; border-radius: 8px; background: linear-gradient(90deg, #2f80ed, #6db0ff); display: inline-block; }
+      .bar-wrap { display: flex; align-items: center; gap: 8px; }
+      .tiny { font-size: 12px; color: #667085; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <h2>运营大盘</h2>
+      <div id="dashboardCards" class="grid"></div>
+
+      <div class="section two-col">
+        <div class="card">
+          <h3>区域分布</h3>
+          <div id="areaChart"></div>
+        </div>
+        <div class="card">
+          <h3>优先级分布</h3>
+          <div id="priorityChart"></div>
+        </div>
+      </div>
+
+      <div class="section card">
+        <h3>工程师绩效</h3>
+        <div id="engineerPerformance"></div>
+      </div>
+    </div>
+
+    <script src="./ops_dashboard_app.js"></script>
+  </body>
+</html>
