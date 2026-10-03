@@ -20,7 +20,9 @@
 
       <view class="actions">
         <button wx:if="{{item.status === '待处理'}}" class="btn primary" bindtap="acceptTask" data-id="{{item._id}}">接单</button>
+        <button wx:if="{{item.status === '待处理' || item.status === '处理中'}}" class="btn" bindtap="checkIn" data-id="{{item._id}}">到场签到</button>
         <button wx:if="{{item.status === '处理中'}}" class="btn warn" bindtap="rejectTask" data-id="{{item._id}}">拒单</button>
+        <button wx:if="{{item.status === '处理中'}}" class="btn photo" bindtap="addRecordWithPhotos" data-id="{{item._id}}">上传现场照片</button>
         <button wx:if="{{item.status === '处理中'}}" class="btn success" bindtap="completeTask" data-id="{{item._id}}">完成</button>
       </view>
     </view>

@@ -16,72 +16,63 @@ async function isAdmin(openid) {
 }
 
 exports.main = async (event, context) => {
-  const { action, id, payload, page = 1, pageSize = 20, filter = {} } = event;
+  const { action, id, payload } = event;
   const openid = context.OPENID;
 
   try {
     switch (action) {
-      case 'listAssigned': {
-        const where = { assigneeOpenId: openid };
-        const res = await db.collection('maintenance').where(where).orderBy('createdAt', 'desc').limit(pageSize).get();
-        return { code: 0, data: res.data || [] };
-      }
-
-      case 'acceptTask': {
-        if (!id) return { code: 1, message: '缺少工单 ID' };
+      case 'checkin': {
+        // engineer check-in (record with optional location)
+        if (!id) return { code: 1, message: '缺少工单 id' };
+        const { latitude, longitude, note } = payload || {};
+        const now = new Date();
         const rec = await db.collection('maintenance').doc(id).get();
         if (!rec || !rec.data) return { code: 1, message: '工单不存在' };
+        // only assignee or admin can checkin
         if (rec.data.assigneeOpenId !== openid && !(await isAdmin(openid))) {
-          return { code: 1, message: '没有权限接单' };
+          return { code: 1, message: '没有权限签到' };
         }
-        const now = new Date();
-        await db.collection('maintenance').doc(id).update({
-          data: {
-            status: '处理中',
-            updatedAt: now,
-            records: _.push([{ type: 'accept', by: openid, at: now }])
-          }
-        });
+
+        const record = { type: 'checkin', by: openid, at: now, location: { latitude, longitude }, note: note || '' };
+        await db.collection('maintenance').doc(id).update({ data: { records: _.push([record]), updatedAt: now } });
         const updated = await db.collection('maintenance').doc(id).get();
+        // write audit log
+        await db.collection('logs').add({ data: { kind: 'checkin', orderId: id, by: openid, at: now, payload: record } });
         return { code: 0, data: updated.data || {} };
       }
 
-      case 'rejectTask': {
-        if (!id) return { code: 1, message: '缺少工单 ID' };
-        const rec = await db.collection('maintenance').doc(id).get();
-        if (!rec || !rec.data) return { code: 1, message: '工单不存在' };
-        if (rec.data.assigneeOpenId !== openid && !(await isAdmin(openid))) {
-          return { code: 1, message: '没有权限拒单' };
-        }
+      case 'addRecord': {
+        // support images and text in records
+        if (!id) return { code: 1, message: '缺少工单 id' };
+        const { text, images } = payload || {};
+        if (!text && (!images || images.length === 0)) return { code: 1, message: '记录内容不能为空' };
+        const rcd = await db.collection('maintenance').doc(id).get();
+        const item = rcd.data || {};
+        const allowed = (await isAdmin(openid)) || item.assigneeOpenId === openid || item.creatorOpenId === openid;
+        if (!allowed) return { code: 1, message: '没有权限添加记录' };
+
         const now = new Date();
-        await db.collection('maintenance').doc(id).update({
-          data: {
-            status: '待处理',
-            updatedAt: now,
-            assigneeOpenId: '',
-            records: _.push([{ type: 'reject', by: openid, at: now }])
-          }
-        });
+        const record = { type: 'record', by: openid, text: text || '', images: images || [], at: now };
+        await db.collection('maintenance').doc(id).update({ data: { records: _.push([record]), updatedAt: now } });
         const updated = await db.collection('maintenance').doc(id).get();
+        // log
+        await db.collection('logs').add({ data: { kind: 'record', orderId: id, by: openid, at: now, payload: record } });
         return { code: 0, data: updated.data || {} };
       }
 
-      case 'completeTask': {
-        if (!id) return { code: 1, message: '缺少工单 ID' };
+      case 'arrivalConfirm': {
+        // mark engineer arrived and optionally upload final photos
+        if (!id) return { code: 1, message: '缺少工单 id' };
+        const { images } = payload || {};
         const rec = await db.collection('maintenance').doc(id).get();
         if (!rec || !rec.data) return { code: 1, message: '工单不存在' };
-        if (rec.data.assigneeOpenId !== openid && !(await isAdmin(openid))) {
-          return { code: 1, message: '没有权限完成此工单' };
-        }
+        const item = rec.data;
+        if (item.assigneeOpenId !== openid && !(await isAdmin(openid))) return { code: 1, message: '没有权限操作' };
         const now = new Date();
-        await db.collection('maintenance').doc(id).update({
-          data: {
-            status: '已完成',
-            updatedAt: now,
-            records: _.push([{ type: 'complete', by: openid, at: now }])
-          }
-        });
+        const record = { type: 'arrival', by: openid, at: now, images: images || [] };
+        await db.collection('maintenance').doc(id).update({ data: { records: _.push([record]), updatedAt: now } });
         const updated = await db.collection('maintenance').doc(id).get();
+        await db.collection('logs').add({ data: { kind: 'arrival', orderId: id, by: openid, at: now, payload: record } });
         return { code: 0, data: updated.data || {} };
       }
 
@@ -89,7 +80,7 @@ exports.main = async (event, context) => {
         return { code: 1, message: '未知 action' };
     }
   } catch (err) {
-    console.error('engineer cloud function error:', err);
-    return { code: 1, message: err && err.message ? err.message : '工程师任务操作失败' };
+    console.error('maintenance extended error:', err);
+    return { code: 1, message: err && err.message ? err.message : '操作失败' };
   }
 };

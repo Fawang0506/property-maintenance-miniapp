@@ -1,3 +1,4 @@
+/* styles reuse */
 .page {
   padding: 20rpx 20rpx 60rpx;
   background: #f5f7fa;
@@ -28,10 +29,10 @@
 .badge.processing { background: #e6f3ff; color: #1765c1; }
 .badge.done { background: #eaf9ee; color: #198754; }
 
-.actions { display: flex; gap: 12rpx; margin-top: 18rpx; }
+.actions { display: flex; gap: 12rpx; margin-top: 18rpx; flex-wrap:wrap; }
 .btn {
-  flex: 1;
-  min-height: 72rpx;
+  min-width: 120rpx;
+  height: 72rpx;
   border-radius: 8rpx;
   font-size: 28rpx;
   color: #fff;
@@ -41,6 +42,7 @@
 .btn.primary { background: #1aad19; }
 .btn.warn { background: #f59e0b; }
 .btn.success { background: #0f9d58; }
+.btn.photo { background: #5b8def; }
 
 .empty {
   text-align: center;
