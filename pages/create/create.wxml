@@ -7,7 +7,7 @@
     </view>
 
     <view class="input-wrap">
-      <picker bindchange="onCategoryChange" range="{{categories}}" value="{{category}}">
+      <picker bindchange="onCategoryChange" range="{{categories}}">
         <view>类别：{{category}}</view>
       </picker>
     </view>
@@ -22,6 +22,20 @@
 
     <view class="input-wrap">
       <textarea placeholder="问题描述" bindinput="onDescriptionInput" value="{{description}}" style="height:220rpx;" />
+    </view>
+
+    <view class="section-title" style="margin-top:18rpx;">上传图片（最多6张）</view>
+    <view style="display:flex;flex-wrap:wrap;padding:10rpx;">
+      <block wx:for="{{images}}" wx:key="index">
+        <view style="width:120rpx;height:120rpx;margin:10rpx;position:relative;">
+          <image src="{{item}}" style="width:100%;height:100%;border-radius:8rpx;" bindtap="previewImage" data-index="{{index}}" />
+          <button bindtap="removeImage" data-index="{{index}}" style="position:absolute;right:6rpx;top:6rpx;background:rgba(0,0,0,0.4);color:#fff;border-radius:12rpx;">删</button>
+        </view>
+      </block>
+
+      <view wx:if="{{images.length < 6}}" style="width:120rpx;height:120rpx;margin:10rpx;display:flex;align-items:center;justify-content:center;">
+        <button bindtap="chooseImage">添加</button>
+      </view>
     </view>
 
     <view class="input-wrap" style="margin-top:30rpx;">
