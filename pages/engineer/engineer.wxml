@@ -1,0 +1,32 @@
+<view class="page">
+  <view class="header">
+    <text class="title">我的工单</text>
+  </view>
+
+  <block wx:if="{{list.length > 0}}">
+    <view wx:for="{{list}}" wx:key="_id" class="card">
+      <view class="row between">
+        <text class="job-title">{{item.title}}</text>
+        <text class="badge {{item.status === '待处理' ? 'pending' : item.status === '处理中' ? 'processing' : 'done'}}">{{item.status || '待处理'}}</text>
+      </view>
+
+      <view class="meta">
+        <view>区域：{{item.area || '未填写'}}</view>
+        <view>位置：{{item.location || '未填写'}}</view>
+        <view>优先级：{{item.priority || '中'}}</view>
+        <view>联系人：{{item.contact || '未填写'}}</view>
+        <view>描述：{{item.description || '暂无描述'}}</view>
+      </view>
+
+      <view class="actions">
+        <button wx:if="{{item.status === '待处理'}}" class="btn primary" bindtap="acceptTask" data-id="{{item._id}}">接单</button>
+        <button wx:if="{{item.status === '处理中'}}" class="btn warn" bindtap="rejectTask" data-id="{{item._id}}">拒单</button>
+        <button wx:if="{{item.status === '处理中'}}" class="btn success" bindtap="completeTask" data-id="{{item._id}}">完成</button>
+      </view>
+    </view>
+  </block>
+
+  <view wx:else class="empty">
+    暂无分配到的工单
+  </view>
+</view>
