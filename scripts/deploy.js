@@ -51,7 +51,7 @@ async function main() {
   // 部署后调用 adminApi 检查后端连通性（可选，不阻塞）
   try {
     const check = await fetch(`${adminApiUrl}/health`, {
-      headers: { Authorization: `Bearer ${adminApiToken}` },
+      headers: { 'x-admin-token': `${adminApiToken}` },
     });
     console.log('adminApi check:', check.status, await check.text());
   } catch (err) {
