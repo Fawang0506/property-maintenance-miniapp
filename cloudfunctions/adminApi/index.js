@@ -407,8 +407,8 @@ exports.main = async (event, context) => {
       case 'setSla': {
         const sla = event.payload || {};
         const next = {
-          warnHours: Number(sla.warnHours || settings.sla?.warnHours || 8),
-          criticalHours: Number(sla.criticalHours || settings.sla?.criticalHours || 24)
+          warnHours: Number(sla.warnHours || (settings.sla && settings.sla.warnHours) || 8),
+          criticalHours: Number(sla.criticalHours || (settings.sla && settings.sla.criticalHours) || 24)
         };
         await db.collection('settings').doc('global').set({ data: { ...(settings || {}), sla: next } });
         return { code: 0, data: next };
