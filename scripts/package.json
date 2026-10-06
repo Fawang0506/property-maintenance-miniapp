@@ -6,5 +6,10 @@
   "dependencies": {
     "miniprogram-ci": "^1.9.0",
     "less": "^3.13.1"
+  },
+  "overrides": {
+    "miniprogram-ci": {
+      "less": "^3.13.1"
+    }
   }
 }
