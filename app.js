@@ -7,7 +7,7 @@ App({
 
     // 设置云开发环境（你需要在微信开发者工具中绑定真实环境）
     wx.cloud.init({
-      env: 'your-cloud-env-id' // 例如：property-maintenance-abc123
+      env: 'cloudbase-d7gdq0yqo4f53b3ae' // 例如：property-maintenance-abc123
     });
 
     // 可在此处判断登录状态和是否管理员
@@ -17,6 +17,6 @@ App({
   globalData: {
     userInfo: null,
     isAdmin: false,
-    cloudEnv: 'your-cloud-env-id'
+    cloudEnv: 'cloudbase-d7gdq0yqo4f53b3ae'
   }
 });
